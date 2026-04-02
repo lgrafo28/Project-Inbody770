@@ -108,9 +108,18 @@
   50% { opacity: 0.85; transform: scale(1.05); }
 }
 
+/*
+  Scan line fix: element is now 100% of the container height.
+  The gradient places the glow band at 50% of the element.
+  translateY(-100%) → glow is 0.5× above the container (invisible).
+  translateY(0%)    → glow is at the vertical centre of the container.
+  translateY(100%)  → glow is 0.5× below the container (invisible).
+  Net effect: the visible traversal covers the full container height
+  in the middle half of each 4 s cycle, then loops cleanly.
+*/
 @keyframes scanning {
-  0% { transform: translateY(-100%); }
-  100% { transform: translateY(800%); }
+  0%   { transform: translateY(-100%); }
+  100% { transform: translateY(100%); }
 }
 
 .animate-pulse-soft {
@@ -118,12 +127,18 @@
 }
 
 .scanning-glow {
-  background: linear-gradient(to bottom, transparent 0%, #0056b3 60%, transparent 100%);
-  height: 6px;
+  background: linear-gradient(
+    to bottom,
+    transparent 0%,
+    transparent 42%,
+    rgba(0, 86, 179, 0.55) 50%,
+    transparent 58%,
+    transparent 100%
+  );
+  height: 100%;
   width: 100%;
   position: absolute;
   top: 0;
   left: 0;
-  opacity: 0.6;
   animation: scanning 4s infinite linear;
 }

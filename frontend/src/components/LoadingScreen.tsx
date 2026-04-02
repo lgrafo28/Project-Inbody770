@@ -1,4 +1,73 @@
+import { useState, useEffect } from 'react';
+
+// Step 1 is always "completed" when the screen mounts.
+// Timers advance currentStep while the real request runs in the background.
+// If the result arrives before a timer fires, the component unmounts and
+// the timers are cleaned up — no state updates on an unmounted component.
+const STEP_TIMINGS: Record<number, number> = {
+  3: 5000,   // → step 3 active after 5 s
+  4: 13000,  // → step 4 active after 13 s
+};
+
+const steps = [
+  {
+    id: 1,
+    label: 'Dokument wird gelesen',
+    detail: 'Vollständiger Scan der InBody-Matrix abgeschlossen.',
+  },
+  {
+    id: 2,
+    label: 'Messwerte werden extrahiert',
+    detail: 'Verarbeite Körperzusammensetzung und Segmental-Analyse...',
+  },
+  {
+    id: 3,
+    label: 'Plausibilität wird geprüft',
+    detail: 'Abgleich mit medizinischen Referenzwerten.',
+  },
+  {
+    id: 4,
+    label: 'Ergebnis wird vorbereitet',
+    detail: 'Generierung der finalen Analyse-Übersicht.',
+  },
+];
+
+function CheckIcon() {
+  return (
+    <svg className="w-5 h-5 text-on-tertiary" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+    </svg>
+  );
+}
+
+function SpinIcon() {
+  return (
+    <svg
+      className="w-5 h-5 text-on-primary animate-spin"
+      style={{ animationDuration: '3s' }}
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      strokeWidth={2}
+    >
+      <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+    </svg>
+  );
+}
+
 export function LoadingScreen() {
+  // currentStep: the step that is currently active (spinning).
+  // Steps before it are completed; steps after it are upcoming.
+  // Step 1 is always completed at mount, so we start at step 2.
+  const [currentStep, setCurrentStep] = useState(2);
+
+  useEffect(() => {
+    const timers = Object.entries(STEP_TIMINGS).map(([step, delay]) =>
+      setTimeout(() => setCurrentStep(Number(step)), delay),
+    );
+    return () => timers.forEach(clearTimeout);
+  }, []);
+
   return (
     <div className="flex-grow flex flex-col items-center justify-center px-8 pt-16 pb-20">
       <div className="max-w-6xl w-full grid grid-cols-1 lg:grid-cols-12 gap-16 items-center">
@@ -18,53 +87,52 @@ export function LoadingScreen() {
             {/* Connector line */}
             <div className="absolute left-[15px] top-4 bottom-4 w-[2px] bg-outline-variant/20" />
 
-            {/* Step 1: Completed */}
-            <div className="flex items-start gap-8 relative">
-              <div className="z-10 bg-tertiary-container rounded-full p-2 flex items-center justify-center shadow-sm flex-shrink-0">
-                <svg className="w-5 h-5 text-on-tertiary" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                </svg>
-              </div>
-              <div className="pt-1">
-                <p className="font-headline font-semibold text-on-surface-variant/80">Dokument wird gelesen</p>
-                <p className="text-on-surface-variant text-sm mt-0.5">Vollständiger Scan der InBody-Matrix abgeschlossen.</p>
-              </div>
-            </div>
+            {steps.map((step) => {
+              const completed = step.id < currentStep;
+              const active    = step.id === currentStep;
+              const upcoming  = step.id > currentStep;
 
-            {/* Step 2: Active */}
-            <div className="flex items-start gap-8 relative">
-              <div className="z-10 bg-primary ring-8 ring-primary/10 rounded-full p-2 flex items-center justify-center shadow-lg animate-pulse-soft flex-shrink-0">
-                <svg className="w-5 h-5 text-on-primary animate-spin" style={{ animationDuration: '3s' }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                </svg>
-              </div>
-              <div className="pt-1">
-                <p className="font-headline font-bold text-primary text-lg">Messwerte werden extrahiert</p>
-                <p className="text-on-surface-variant font-medium text-sm mt-1 italic">Verarbeite Körperzusammensetzung und Segmental-Analyse...</p>
-              </div>
-            </div>
+              return (
+                <div
+                  key={step.id}
+                  className={`flex items-start gap-8 relative transition-opacity duration-700 ${upcoming ? 'opacity-40' : 'opacity-100'}`}
+                >
+                  {/* Step icon */}
+                  {completed && (
+                    <div className="z-10 bg-tertiary-container rounded-full p-2 flex items-center justify-center shadow-sm flex-shrink-0 transition-all duration-500">
+                      <CheckIcon />
+                    </div>
+                  )}
+                  {active && (
+                    <div className="z-10 bg-primary ring-8 ring-primary/10 rounded-full p-2 flex items-center justify-center shadow-lg animate-pulse-soft flex-shrink-0">
+                      <SpinIcon />
+                    </div>
+                  )}
+                  {upcoming && (
+                    <div className="z-10 bg-surface-container-highest rounded-full p-2 flex items-center justify-center border border-outline-variant/30 flex-shrink-0">
+                      <div className="w-5 h-5 rounded-full border-2 border-outline/20" />
+                    </div>
+                  )}
 
-            {/* Step 3: Upcoming */}
-            <div className="flex items-start gap-8 relative opacity-40">
-              <div className="z-10 bg-surface-container-highest rounded-full p-2 flex items-center justify-center border border-outline-variant/30 flex-shrink-0">
-                <div className="w-5 h-5 rounded-full border-2 border-outline/20" />
-              </div>
-              <div className="pt-1">
-                <p className="font-headline font-semibold text-outline">Plausibilität wird geprüft</p>
-                <p className="text-on-surface-variant text-sm mt-0.5">Abgleich mit medizinischen Referenzwerten.</p>
-              </div>
-            </div>
-
-            {/* Step 4: Upcoming */}
-            <div className="flex items-start gap-8 relative opacity-40">
-              <div className="z-10 bg-surface-container-highest rounded-full p-2 flex items-center justify-center border border-outline-variant/30 flex-shrink-0">
-                <div className="w-5 h-5 rounded-full border-2 border-outline/20" />
-              </div>
-              <div className="pt-1">
-                <p className="font-headline font-semibold text-outline">Ergebnis wird vorbereitet</p>
-                <p className="text-on-surface-variant text-sm mt-0.5">Generierung der finalen Analyse-Übersicht.</p>
-              </div>
-            </div>
+                  {/* Step text */}
+                  <div className="pt-1">
+                    {active ? (
+                      <>
+                        <p className="font-headline font-bold text-primary text-lg transition-colors duration-500">{step.label}</p>
+                        <p className="text-on-surface-variant font-medium text-sm mt-1 italic">{step.detail}</p>
+                      </>
+                    ) : (
+                      <>
+                        <p className={`font-headline font-semibold ${completed ? 'text-on-surface-variant/80' : 'text-outline'}`}>
+                          {step.label}
+                        </p>
+                        <p className="text-on-surface-variant text-sm mt-0.5">{step.detail}</p>
+                      </>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
 
@@ -100,7 +168,7 @@ export function LoadingScreen() {
               </div>
             </div>
 
-            {/* Scanning glow */}
+            {/* Scanning glow — travels full container height */}
             <div className="absolute inset-0 z-20 pointer-events-none overflow-hidden">
               <div className="scanning-glow" />
             </div>
