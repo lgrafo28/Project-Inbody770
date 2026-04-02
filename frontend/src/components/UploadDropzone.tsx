@@ -24,7 +24,11 @@ export function UploadDropzone({ onUploadStart, onUploadSuccess, onUploadError }
     formData.append('file', file);
 
     try {
-      const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
+      const API_URL = import.meta.env.VITE_API_URL;
+
+      if (!API_URL) {
+        throw new Error("VITE_API_URL ist nicht gesetzt.");
+      }
 
       const response = await fetch(`${API_URL}/api/analyze`, {
           method: 'POST',
