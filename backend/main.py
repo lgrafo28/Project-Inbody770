@@ -20,7 +20,7 @@ app = FastAPI(title="InBody 770 Vision API", version="0.1.0")
 origins = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
-    "https://DEIN-FRONTEND.onrender.com",
+    "https://project-inbody770-1.onrender.com",
 ]
 
 # Allow CORS for local development
