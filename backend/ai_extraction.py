@@ -1,87 +1,148 @@
 import os
 import json
+import logging
+
 from google import genai
 from google.genai import types
 
-PROMPT_TEMPLATE = """
-Du bist ein medizinischer Datenextraktions-Assistent. Deine Aufgabe ist es, exakt den vorliegenden InBody 770 Befundbogen auszulesen.
-Achte streng auf folgende Vorgaben:
-1. Extrahiere ALLE verlangten Werte. Wenn ein Wert im Bericht **absolut nicht auffindbar** ist, setze ihn auf `null`.
-2. Schätze bei jedem Wert einen `confidence`-Wert zwischen 0.0 und 1.0 (1.0 = perfekt gelesen, <0.8 = unleserlich/unsicher).
-3. Lass dir keine Werte ausdenken! Nimm nur das, was auf dem Bild steht.
-4. Generiere exakt das JSON-Format ohne zusätzlichen Text, keinen Markdown-Block um das JSON, NUR JSON.
 
-Wichtigstes Ziel: Extrahiere IMMER exakt 1 JSON-Struktur, die dem unten stehenden Format entspricht.
-Das Feld `ampel` am Ende DARF grün, gelb, oder rot sein. 
-Das Array `warnungen` kann leer bleiben oder Fehler auflisten.
+logger = logging.getLogger("inbody_api")
+
+
+PROMPT_TEMPLATE = """
+Du bist ein präziser Datenextraktions-Assistent für InBody-Befundbögen.
+
+Deine einzige Aufgabe:
+Lies ausschließlich die sichtbaren Messwerte aus dem hochgeladenen InBody-Dokument aus.
+
+Regeln:
+1. Erfinde keine Werte.
+2. Wenn ein Wert nicht eindeutig lesbar oder nicht vorhanden ist, setze ihn auf null.
+3. Antworte ausschließlich mit validem JSON.
+4. Kein Fließtext, kein Markdown, keine Erklärungen.
+5. Verwende genau die Feldnamen aus dem Schema.
+6. "confidence" ist eine Zahl zwischen 0.0 und 1.0.
+7. "datum" wenn möglich im Format YYYY-MM-DD, sonst null.
+8. "viszeralfett.einheit" nur dann befüllen, wenn sie im Dokument klar erkennbar ist, sonst null.
+
+Antworte exakt in diesem JSON-Format:
 
 {
   "meta": {
     "dokument_typ": "inbody_770",
-    "name": "Mustername (Falls lesbar, sonst null)",
-    "datum": "YYYY-MM-DD",
-    "confidence": 0.95
+    "name": null,
+    "datum": null,
+    "confidence": 0.0
   },
   "werte": {
-    "gewicht": { "wert": 0.0, "einheit": "kg", "normal_min": 0.0, "normal_max": 0.0, "confidence": 0.99 },
-    "skelettmuskel": { "wert": 0.0, "einheit": "kg", "normal_min": 0.0, "normal_max": 0.0, "confidence": 0.99 },
-    "koerperfett": { "wert": 0.0, "einheit": "kg", "normal_min": 0.0, "normal_max": 0.0, "confidence": 0.99 },
-    "bmi": { "wert": 0.0, "einheit": "kg/m²", "normal_min": 0.0, "normal_max": 0.0, "confidence": 0.99 },
-    "koerperfettanteil": { "wert": 0.0, "einheit": "%", "normal_min": 0.0, "normal_max": 0.0, "confidence": 0.99 },
-    "viszeralfett": { "wert": 0.0, "einheit": "cm² (oder Level, exakt wie auf Papier)", "normal_min": 0.0, "normal_max": 0.0, "confidence": 0.99 },
-    "grundumsatz": { "wert": 0, "einheit": "kcal", "normal_min": null, "normal_max": null, "confidence": 0.99 },
-    "koerperwasser": { "wert": 0.0, "einheit": "l", "normal_min": 0.0, "normal_max": 0.0, "confidence": 0.99 },
-    "ecw_tbw": { "wert": 0.0, "einheit": "ratio", "normal_min": 0.0, "normal_max": 0.0, "confidence": 0.99 }
-  },
-  "zusammenfassung_kurz": "Generiere einen kurzen Satz (max 15 Wörter) basierend auf den Werten.",
-  "zusammenfassung_detail": "Generiere 2-3 Sätze Detailauswertung.",
-  "ampel": "gruen", 
-  "ampel_begruendung": "Grund für Ampelfarbe",
-  "hinweise": {
-    "training": ["Tipp 1"],
-    "ernaehrung": ["Tipp 2"],
-    "verlauf": ["Tipp 3"]
-  },
-  "validierung": {
-    "fehlende_felder": [],
-    "auffaellige_felder": [],
-    "warnungen": []
+    "gewicht": {
+      "wert": null,
+      "einheit": "kg",
+      "normal_min": null,
+      "normal_max": null,
+      "confidence": 0.0
+    },
+    "skelettmuskel": {
+      "wert": null,
+      "einheit": "kg",
+      "normal_min": null,
+      "normal_max": null,
+      "confidence": 0.0
+    },
+    "koerperfett": {
+      "wert": null,
+      "einheit": "kg",
+      "normal_min": null,
+      "normal_max": null,
+      "confidence": 0.0
+    },
+    "bmi": {
+      "wert": null,
+      "einheit": "kg/m²",
+      "normal_min": null,
+      "normal_max": null,
+      "confidence": 0.0
+    },
+    "koerperfettanteil": {
+      "wert": null,
+      "einheit": "%",
+      "normal_min": null,
+      "normal_max": null,
+      "confidence": 0.0
+    },
+    "viszeralfett": {
+      "wert": null,
+      "einheit": null,
+      "normal_min": null,
+      "normal_max": null,
+      "confidence": 0.0
+    },
+    "grundumsatz": {
+      "wert": null,
+      "einheit": "kcal",
+      "normal_min": null,
+      "normal_max": null,
+      "confidence": 0.0
+    },
+    "koerperwasser": {
+      "wert": null,
+      "einheit": "l",
+      "normal_min": null,
+      "normal_max": null,
+      "confidence": 0.0
+    },
+    "ecw_tbw": {
+      "wert": null,
+      "einheit": "ratio",
+      "normal_min": null,
+      "normal_max": null,
+      "confidence": 0.0
+    }
   }
 }
 """
 
+
 def extract_inbody_data(image_bytes: bytes, mime_type: str) -> dict:
-    """
-    Simulates sending the document to Gemini and extracting the predefined JSON schema.
-    Returns a Python dictionary parsed from the JSON output.
-    """
     api_key = os.environ.get("GEMINI_API_KEY")
     if not api_key:
         raise ValueError("GEMINI_API_KEY is not set.")
 
     client = genai.Client(api_key=api_key)
-    
-    # We use gemini-2.5-flash for the fastest, most potent multimodal logic
     part = types.Part.from_bytes(data=image_bytes, mime_type=mime_type)
-    
+
     try:
         response = client.models.generate_content(
-            model='gemini-2.5-flash',
+            model="gemini-2.5-flash",
             contents=[PROMPT_TEMPLATE, part],
             config=types.GenerateContentConfig(
                 response_mime_type="application/json",
-            )
+            ),
         )
-        
-        # Parse the JSON string from Gemini into a Python dictionary.
-        # Strict validation will happen in services.py (Pydantic model)
-        data = json.loads(response.text)
+
+        raw_text = (response.text or "").strip()
+
+        if not raw_text:
+            raise ValueError("Die KI hat keine Antwort geliefert.")
+
+        try:
+            data = json.loads(raw_text)
+        except json.JSONDecodeError:
+            # Falls das Modell wider Erwarten JSON in einen Codeblock packt
+            cleaned = raw_text.replace("```json", "").replace("```", "").strip()
+            try:
+                data = json.loads(cleaned)
+            except json.JSONDecodeError as e:
+                logger.error(f"Ungültiges JSON von Gemini: {raw_text[:1000]}")
+                raise ValueError("Die KI hat ein ungültiges JSON-Format geantwortet.") from e
+
+        if not isinstance(data, dict):
+            raise ValueError("Die KI-Antwort hat kein gültiges Objekt geliefert.")
+
         return data
-        
-    except json.JSONDecodeError as e:
-        print(f"Failed to parse JSON from Gemini: {e}")
-        # Log the raw text somewhere if needed: response.text
-        raise ValueError("Die KI hat ein ungültiges Format geantwortet.")
+
+    except ValueError:
+        raise
     except Exception as e:
-        print(f"Gemini API Error: {e}")
+        logger.error(f"Gemini API Error: {str(e)}")
         raise ValueError(f"KI Anfrage fehlgeschlagen: {str(e)}")
