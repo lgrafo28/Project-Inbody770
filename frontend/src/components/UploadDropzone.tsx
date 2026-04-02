@@ -6,7 +6,69 @@ interface UploadDropzoneProps {
   onUploadError: (error: string) => void;
 }
 
-export function UploadDropzone({ onUploadStart, onUploadSuccess, onUploadError }: UploadDropzoneProps) {
+const MAX_FILE_SIZE_MB = 15;
+const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
+
+async function compressImage(file: File): Promise<File> {
+  if (!file.type.startsWith('image/')) {
+    return file;
+  }
+
+  const img = new Image();
+  const imageUrl = URL.createObjectURL(file);
+
+  await new Promise<void>((resolve, reject) => {
+    img.onload = () => resolve();
+    img.onerror = () => reject(new Error('Bild konnte nicht geladen werden.'));
+    img.src = imageUrl;
+  });
+
+  const maxDimension = 1800;
+  let { width, height } = img;
+
+  if (width > height && width > maxDimension) {
+    height = Math.round((height * maxDimension) / width);
+    width = maxDimension;
+  } else if (height >= width && height > maxDimension) {
+    width = Math.round((width * maxDimension) / height);
+    height = maxDimension;
+  }
+
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+
+  const ctx = canvas.getContext('2d');
+  if (!ctx) {
+    URL.revokeObjectURL(imageUrl);
+    throw new Error('Canvas-Kontext nicht verfügbar.');
+  }
+
+  ctx.drawImage(img, 0, 0, width, height);
+
+  const blob = await new Promise<Blob | null>((resolve) => {
+    canvas.toBlob(resolve, 'image/jpeg', 0.8);
+  });
+
+  URL.revokeObjectURL(imageUrl);
+
+  if (!blob) {
+    throw new Error('Bildkomprimierung fehlgeschlagen.');
+  }
+
+  const compressedName = file.name.replace(/\.(png|jpe?g|webp)$/i, '.jpg');
+
+  return new File([blob], compressedName, {
+    type: 'image/jpeg',
+    lastModified: Date.now(),
+  });
+}
+
+export function UploadDropzone({
+  onUploadStart,
+  onUploadSuccess,
+  onUploadError,
+}: UploadDropzoneProps) {
   const [isDragging, setIsDragging] = useState(false);
 
   const handleFile = async (file: File) => {
@@ -14,25 +76,32 @@ export function UploadDropzone({ onUploadStart, onUploadSuccess, onUploadError }
 
     const validTypes = ['application/pdf', 'image/jpeg', 'image/png'];
     if (!validTypes.includes(file.type) && !file.name.match(/\.(pdf|jpe?g|png)$/i)) {
-      onUploadError("Bitte nur PDF, JPG oder PNG hochladen.");
+      onUploadError('Bitte nur PDF, JPG oder PNG hochladen.');
+      return;
+    }
+
+    if (file.size > MAX_FILE_SIZE_BYTES) {
+      onUploadError(`Datei ist zu groß. Bitte maximal ${MAX_FILE_SIZE_MB} MB hochladen.`);
       return;
     }
 
     onUploadStart();
 
-    const formData = new FormData();
-    formData.append('file', file);
-
     try {
-      const API_URL = import.meta.env.VITE_API_URL;
+      const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
 
-      if (!API_URL) {
-        throw new Error("VITE_API_URL ist nicht gesetzt.");
-      }
+      // Bilder komprimieren, PDFs unverändert lassen
+      const optimizedFile =
+        file.type === 'application/pdf' || file.name.match(/\.pdf$/i)
+          ? file
+          : await compressImage(file);
+
+      const formData = new FormData();
+      formData.append('file', optimizedFile);
 
       const response = await fetch(`${API_URL}/api/analyze`, {
-          method: 'POST',
-          body: formData,
+        method: 'POST',
+        body: formData,
       });
 
       if (!response.ok) {
@@ -44,7 +113,7 @@ export function UploadDropzone({ onUploadStart, onUploadSuccess, onUploadError }
           } else {
             errorDetail = `HTTP ${response.status} Error`;
           }
-        } catch (e) {
+        } catch {
           errorDetail = `Netzwerkfehler oder Server nicht erreichbar (${response.status})`;
         }
         throw new Error(errorDetail);
@@ -53,7 +122,7 @@ export function UploadDropzone({ onUploadStart, onUploadSuccess, onUploadError }
       const data = await response.json();
       onUploadSuccess(data);
     } catch (e: any) {
-      onUploadError(e.message || "Es ist ein Fehler aufgetreten");
+      onUploadError(e.message || 'Es ist ein Fehler aufgetreten');
     }
   };
 
@@ -70,6 +139,7 @@ export function UploadDropzone({ onUploadStart, onUploadSuccess, onUploadError }
   const onDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(false);
+
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
       handleFile(e.dataTransfer.files[0]);
     }
@@ -83,8 +153,6 @@ export function UploadDropzone({ onUploadStart, onUploadSuccess, onUploadError }
 
   return (
     <div className="pt-12 pb-24 px-8 max-w-7xl mx-auto">
-
-      {/* Hero Header */}
       <header className="mb-16 max-w-3xl py-4">
         <span className="inline-block px-3 py-1 bg-tertiary-container/10 text-on-tertiary-fixed-variant font-label text-[0.7rem] font-bold uppercase tracking-widest rounded-full mb-4">
           Precision Diagnostics
@@ -93,17 +161,13 @@ export function UploadDropzone({ onUploadStart, onUploadSuccess, onUploadError }
           Befunde einfach auswerten.
         </h1>
         <p className="text-lg text-on-surface-variant leading-relaxed font-body">
-          Laden Sie einen InBody-770-Scan hoch. Die KI extrahiert biometrische Marker, prüft Plausibilität und bereitet die Ergebnisse strukturiert auf.
+          Laden Sie einen InBody-770-Scan hoch. Für die schnellste Analyse empfehlen wir
+          JPG oder PNG statt PDF.
         </p>
       </header>
 
-      {/* Two-column layout */}
       <div className="grid grid-cols-1 lg:grid-cols-[1.2fr_0.8fr] gap-12 items-start">
-
-        {/* Left column: Upload + Feature cards */}
         <section className="space-y-8">
-
-          {/* Upload card */}
           <div className="bg-white rounded-xl p-10 shadow-[0px_24px_64px_rgba(0,86,179,0.12)] border border-primary/5 group transition-all duration-300 hover:shadow-[0px_32px_80px_rgba(0,86,179,0.16)]">
             <div
               onDragOver={onDragOver}
@@ -127,7 +191,8 @@ export function UploadDropzone({ onUploadStart, onUploadSuccess, onUploadError }
                   InBody-770 Befund zur Analyse hinzufügen
                 </h3>
                 <p className="text-on-surface-variant max-w-sm mx-auto font-body text-sm leading-relaxed">
-                  PDF oder Bilddatei hochladen. Die KI extrahiert Ihre biometrischen Werte in Echtzeit.
+                  PDF oder Bilddatei hochladen. Bilder werden vor dem Upload für eine
+                  schnellere Analyse optimiert.
                 </p>
               </div>
 
@@ -147,7 +212,6 @@ export function UploadDropzone({ onUploadStart, onUploadSuccess, onUploadError }
             </div>
           </div>
 
-          {/* Feature cards */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="bg-surface-container-lowest p-7 rounded-xl border border-outline-variant/10 shadow-sm transition-all duration-300 hover:border-primary/20">
               <div className="w-10 h-10 rounded-lg bg-primary/5 flex items-center justify-center mb-4">
@@ -155,8 +219,12 @@ export function UploadDropzone({ onUploadStart, onUploadSuccess, onUploadError }
                   <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
                 </svg>
               </div>
-              <h4 className="text-sm font-extrabold text-on-surface font-headline mb-2 tracking-tight">KI-Extraktion</h4>
-              <p className="text-xs text-on-surface-variant font-body leading-relaxed">Präzise Werterkennung durch fortschrittliche Modelle in Sekunden.</p>
+              <h4 className="text-sm font-extrabold text-on-surface font-headline mb-2 tracking-tight">
+                KI-Extraktion
+              </h4>
+              <p className="text-xs text-on-surface-variant font-body leading-relaxed">
+                Präzise Werterkennung durch fortschrittliche Modelle in Sekunden.
+              </p>
             </div>
 
             <div className="bg-surface-container-lowest p-7 rounded-xl border border-outline-variant/10 shadow-sm transition-all duration-300 hover:border-primary/20">
@@ -165,8 +233,12 @@ export function UploadDropzone({ onUploadStart, onUploadSuccess, onUploadError }
                   <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
                 </svg>
               </div>
-              <h4 className="text-sm font-extrabold text-on-surface font-headline mb-2 tracking-tight">Sicher & Verschlüsselt</h4>
-              <p className="text-xs text-on-surface-variant font-body leading-relaxed">Befunde werden nach der Analyse nicht dauerhaft gespeichert.</p>
+              <h4 className="text-sm font-extrabold text-on-surface font-headline mb-2 tracking-tight">
+                Sicher & Verschlüsselt
+              </h4>
+              <p className="text-xs text-on-surface-variant font-body leading-relaxed">
+                Befunde werden nach der Analyse nicht dauerhaft gespeichert.
+              </p>
             </div>
 
             <div className="bg-surface-container-lowest p-7 rounded-xl border border-outline-variant/10 shadow-sm transition-all duration-300 hover:border-primary/20">
@@ -175,19 +247,20 @@ export function UploadDropzone({ onUploadStart, onUploadSuccess, onUploadError }
                   <path strokeLinecap="round" strokeLinejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" />
                 </svg>
               </div>
-              <h4 className="text-sm font-extrabold text-on-surface font-headline mb-2 tracking-tight">Visuelle Analyse</h4>
-              <p className="text-xs text-on-surface-variant font-body leading-relaxed">Automatisierte Visualisierung biometrischer Marker mit Referenzbereichen.</p>
+              <h4 className="text-sm font-extrabold text-on-surface font-headline mb-2 tracking-tight">
+                Visuelle Analyse
+              </h4>
+              <p className="text-xs text-on-surface-variant font-body leading-relaxed">
+                Automatisierte Visualisierung biometrischer Marker mit Referenzbereichen.
+              </p>
             </div>
           </div>
         </section>
 
-        {/* Right column: Decorative report preview */}
         <aside className="relative hidden lg:block">
           <div className="sticky top-24">
             <div className="relative bg-surface-container-lowest rounded-xl overflow-hidden shadow-2xl border border-outline-variant/10">
               <div className="p-10 space-y-8 select-none">
-
-                {/* Preview header */}
                 <div className="flex justify-between items-start border-b border-slate-100 pb-8">
                   <div>
                     <div className="flex items-center gap-2 mb-2">
@@ -202,15 +275,20 @@ export function UploadDropzone({ onUploadStart, onUploadSuccess, onUploadError }
                   </div>
                   <div className="text-right">
                     <div className="text-[11px] font-bold text-on-surface">ANALYSE-ERGEBNIS</div>
-                    <div className="text-[10px] text-primary font-bold uppercase tracking-wider">InBody 770 Clinical</div>
+                    <div className="text-[10px] text-primary font-bold uppercase tracking-wider">
+                      InBody 770 Clinical
+                    </div>
                   </div>
                 </div>
 
-                {/* Metric rows */}
                 <div className="space-y-5">
                   <div className="flex justify-between items-end mb-1">
-                    <span className="text-[11px] font-extrabold text-slate-500 uppercase tracking-tight font-headline">Gewicht & BMI</span>
-                    <span className="text-[10px] text-slate-400 font-bold uppercase">Normalbereich: 18.5–25.0</span>
+                    <span className="text-[11px] font-extrabold text-slate-500 uppercase tracking-tight font-headline">
+                      Gewicht & BMI
+                    </span>
+                    <span className="text-[10px] text-slate-400 font-bold uppercase">
+                      Normalbereich: 18.5–25.0
+                    </span>
                   </div>
                   {[
                     { label: 'BMI (kg/m²)', value: '23.8', width: '68%', color: 'bg-primary' },
@@ -227,7 +305,6 @@ export function UploadDropzone({ onUploadStart, onUploadSuccess, onUploadError }
                   ))}
                 </div>
 
-                {/* Segmental */}
                 <div className="pt-6 border-t border-slate-50">
                   <h6 className="text-[11px] font-extrabold text-slate-500 uppercase tracking-widest mb-6 font-headline">
                     Segmentale Mageranalyse
@@ -248,7 +325,6 @@ export function UploadDropzone({ onUploadStart, onUploadSuccess, onUploadError }
                 </div>
               </div>
 
-              {/* Floating badge */}
               <div className="absolute bottom-8 right-8 z-20">
                 <div className="bg-white/95 backdrop-blur-md p-5 rounded-2xl shadow-2xl border border-primary/10 flex items-center gap-4">
                   <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
@@ -257,8 +333,12 @@ export function UploadDropzone({ onUploadStart, onUploadSuccess, onUploadError }
                     </svg>
                   </div>
                   <div className="text-left">
-                    <p className="text-[11px] font-extrabold text-on-surface font-headline leading-tight">Sofortige Analyse</p>
-                    <p className="text-[10px] text-on-surface-variant font-body">Ergebnis in &lt; 30s</p>
+                    <p className="text-[11px] font-extrabold text-on-surface font-headline leading-tight">
+                      Sofortige Analyse
+                    </p>
+                    <p className="text-[10px] text-on-surface-variant font-body">
+                      Ergebnis in &lt; 30s
+                    </p>
                   </div>
                 </div>
               </div>
