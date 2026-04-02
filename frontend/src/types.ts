@@ -3,6 +3,8 @@ export interface DocumentMeta {
   name: string;
   datum: string;
   confidence: number;
+  /** Age in years — optional, shown in meta if present, omitted silently if absent. */
+  alter?: number | null;
 }
 
 export interface Messwert {

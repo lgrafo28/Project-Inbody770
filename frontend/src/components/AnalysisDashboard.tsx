@@ -1,5 +1,6 @@
 import type { AnalysisResponse } from '../types';
 import { ValueCard } from './ValueCard';
+import { MetricTooltip } from './MetricTooltip';
 
 interface AnalysisDashboardProps {
   data: AnalysisResponse;
@@ -91,6 +92,12 @@ export function AnalysisDashboard({ data, onReset }: AnalysisDashboardProps) {
             </div>
             <span className="text-outline-variant">·</span>
             <span className="font-label text-xs font-bold uppercase tracking-wider">{meta.name}</span>
+            {meta.alter != null && (
+              <>
+                <span className="text-outline-variant">·</span>
+                <span className="font-label text-xs font-bold uppercase tracking-wider">{meta.alter} Jahre</span>
+              </>
+            )}
             <span className="text-outline-variant">·</span>
             <span className="bg-tertiary-container/20 text-tertiary font-label text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded">
               Erkennungsrate {Math.round(meta.confidence * 100)}%
@@ -160,7 +167,19 @@ export function AnalysisDashboard({ data, onReset }: AnalysisDashboardProps) {
           <div className="md:col-span-8 bg-surface-container-lowest rounded-xl p-8 border border-outline-variant/5 shadow-sm">
             <div className="flex justify-between items-start mb-10">
               <div>
-                <span className="font-label text-[10px] font-bold uppercase tracking-widest text-primary/70">Aktuelles Gewicht</span>
+                <div className="flex items-center">
+                  <span className="font-label text-[10px] font-bold uppercase tracking-widest text-primary/70">Aktuelles Gewicht</span>
+                  <MetricTooltip
+                    metricKey="gewicht"
+                    contextNote={
+                      gewicht.normal_min !== null && gewicht.normal_max !== null
+                        ? (gewicht.wert! < gewicht.normal_min || gewicht.wert! > gewicht.normal_max)
+                          ? 'Ihr aktueller Wert liegt außerhalb des Referenzbereichs.'
+                          : 'Ihr aktueller Wert liegt im Referenzbereich.'
+                        : undefined
+                    }
+                  />
+                </div>
                 <div className="flex items-baseline gap-2 mt-2">
                   <span className="font-headline text-5xl font-extrabold text-on-surface tracking-tight">{gewicht.wert}</span>
                   <span className="text-xl font-medium text-on-surface-variant">{gewicht.einheit}</span>
@@ -200,7 +219,19 @@ export function AnalysisDashboard({ data, onReset }: AnalysisDashboardProps) {
         {/* BMI */}
         {werte.bmi && werte.bmi.wert !== null && (
           <div className="md:col-span-4 bg-surface-container-lowest rounded-xl p-8 border border-outline-variant/5 shadow-sm flex flex-col">
-            <span className="font-label text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60 mb-2">Body Mass Index</span>
+            <div className="flex items-center mb-2">
+              <span className="font-label text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60">Body Mass Index</span>
+              <MetricTooltip
+                metricKey="bmi"
+                contextNote={
+                  werte.bmi!.normal_min !== null && werte.bmi!.normal_max !== null
+                    ? (werte.bmi!.wert! < werte.bmi!.normal_min! || werte.bmi!.wert! > werte.bmi!.normal_max!)
+                      ? 'Ihr aktueller Wert liegt außerhalb des Referenzbereichs.'
+                      : 'Ihr aktueller Wert liegt im Referenzbereich.'
+                    : undefined
+                }
+              />
+            </div>
             <span className="font-headline text-5xl font-extrabold text-on-surface tracking-tight">{werte.bmi.wert}</span>
             <div className="flex-grow" />
             <div className="mt-8 pt-6 border-t border-outline-variant/10">

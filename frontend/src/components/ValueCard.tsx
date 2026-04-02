@@ -1,4 +1,5 @@
 import type { Messwert } from '../types';
+import { MetricTooltip } from './MetricTooltip';
 
 interface ValueCardProps {
   title: string;
@@ -123,6 +124,17 @@ export function ValueCard({ title, data }: ValueCardProps) {
   const label = LABEL_MAP[title] || title.replace(/_/g, ' ');
   const icon = ICON_MAP[title] ?? null;
 
+  // Context note for the tooltip — dynamic sentence based on current value state
+  const contextNote = !hasWert
+    ? 'Dieser Wert konnte nicht sicher erkannt werden.'
+    : lowConfidence
+    ? `Erkennungssicherheit: ${Math.round((data.confidence ?? 0) * 100)}%. Bitte manuell prüfen.`
+    : outOfBounds
+    ? 'Ihr aktueller Wert liegt außerhalb des Referenzbereichs.'
+    : data.normal_min !== null && data.normal_max !== null
+    ? 'Ihr aktueller Wert liegt im Referenzbereich.'
+    : undefined;
+
   return (
     <div className={`bg-surface-container-lowest rounded-xl p-6 border shadow-sm transition-all duration-200 hover:shadow-md ${
       outOfBounds ? 'border-error/20' : 'border-outline-variant/5'
@@ -134,7 +146,10 @@ export function ValueCard({ title, data }: ValueCardProps) {
           <span className={color.iconColor}>{icon}</span>
         </div>
         <div className="flex items-center justify-between flex-1 min-w-0">
-          <span className="font-label text-xs font-bold uppercase text-on-surface-variant tracking-wider truncate">{label}</span>
+          <div className="flex items-center gap-0 min-w-0">
+            <span className="font-label text-xs font-bold uppercase text-on-surface-variant tracking-wider truncate">{label}</span>
+            <MetricTooltip metricKey={title} contextNote={contextNote} />
+          </div>
           {lowConfidence && data.confidence !== null && (
             <div className="group relative flex items-center gap-1 ml-2 flex-shrink-0">
               <span className="w-1.5 h-1.5 rounded-full bg-error/70" />
