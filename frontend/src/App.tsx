@@ -6,10 +6,13 @@ import { Footer } from './components/Footer';
 import { LoadingScreen } from './components/LoadingScreen';
 import type { AnalysisResponse } from './types';
 
+type TabKey = 'overview' | 'details';
+
 function App() {
   const [data, setData] = useState<AnalysisResponse | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<TabKey>('overview');
 
   const handleUploadStart = () => {
     setIsLoading(true);
@@ -19,6 +22,7 @@ function App() {
   const handleUploadSuccess = (response: AnalysisResponse) => {
     setIsLoading(false);
     setData(response);
+    setActiveTab('overview');
   };
 
   const handleUploadError = (err: string) => {
@@ -29,11 +33,16 @@ function App() {
   const handleReset = () => {
     setData(null);
     setError(null);
+    setActiveTab('overview');
   };
 
   return (
     <div className="min-h-screen bg-surface text-on-surface flex flex-col">
-      <NavBar />
+      <NavBar
+        activeTab={data ? activeTab : undefined}
+        onTabChange={data ? setActiveTab : undefined}
+        onReset={data ? handleReset : undefined}
+      />
 
       <main className="flex-grow pt-16">
         {!data && !isLoading && (
@@ -56,7 +65,11 @@ function App() {
         {isLoading && <LoadingScreen />}
 
         {data && !isLoading && (
-          <AnalysisDashboard data={data} onReset={handleReset} />
+          <AnalysisDashboard
+            data={data}
+            activeTab={activeTab}
+            onTabChange={setActiveTab}
+          />
         )}
       </main>
 

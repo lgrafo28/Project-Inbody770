@@ -1,8 +1,9 @@
 import React, { useCallback, useState } from 'react';
+import type { AnalysisResponse } from '../types';
 
 interface UploadDropzoneProps {
   onUploadStart: () => void;
-  onUploadSuccess: (data: any) => void;
+  onUploadSuccess: (data: AnalysisResponse) => void;
   onUploadError: (error: string) => void;
 }
 
