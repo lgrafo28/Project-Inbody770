@@ -1,4 +1,4 @@
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 
 from models import AnalysisResponse
 
@@ -16,12 +16,23 @@ _FELDNAMEN = {
 }
 
 
-def _build_summary(werte_dict: Dict[str, Any], ampel: str) -> tuple[str, str]:
+def _build_summary(
+    werte_dict: Dict[str, Any],
+    ampel: str,
+    geschlecht: Optional[str] = None,
+    alter: Optional[int] = None,
+) -> tuple[str, str]:
     """Erzeugt dynamische Zusammenfassungen basierend auf den tatsächlich
     auffälligen Feldern im Befund.
 
     Rückgabe: (zusammenfassung_kurz, zusammenfassung_detail)
     """
+    # Einleitender Satz wenn Patientendaten vorhanden
+    einleitung = ""
+    if geschlecht is not None and alter is not None:
+        geschlecht_text = "männlich" if geschlecht == "m" else "weiblich"
+        einleitung = f"Basierend auf Ihren Angaben (Alter: {alter} Jahre, {geschlecht_text}): "
+
     # Auffällige Felder ermitteln (außerhalb des Normbereichs)
     over_range: List[str] = []   # Werte zu hoch
     under_range: List[str] = []  # Werte zu niedrig
@@ -135,13 +146,21 @@ def _build_summary(werte_dict: Dict[str, Any], ampel: str) -> tuple[str, str]:
                 "Für eine fundierte Einordnung bleiben Zielsetzung, Verlauf und individuelle Ausgangslage wichtig."
             )
 
-    zusammenfassung_detail = " ".join(detail_teile)
+    zusammenfassung_detail = einleitung + " ".join(detail_teile)
     return zusammenfassung_kurz, zusammenfassung_detail
 
 
-def process_and_validate_data(raw_data: Dict[str, Any]) -> AnalysisResponse:
+def process_and_validate_data(
+    raw_data: Dict[str, Any],
+    geschlecht: Optional[str] = None,
+    alter: Optional[int] = None,
+) -> AnalysisResponse:
     # 1. Technische Validierung via Pydantic
     response_model = AnalysisResponse(**raw_data)
+
+    # Patientenalter im Meta-Objekt speichern falls angegeben
+    if alter is not None:
+        response_model.meta.alter = alter
 
     fehlende_felder: list[str] = []
     auffaellige_felder: list[str] = []
@@ -235,7 +254,9 @@ def process_and_validate_data(raw_data: Dict[str, Any]) -> AnalysisResponse:
         )
 
     # 4. Dynamische Zusammenfassungen erzeugen (feldspezifisch)
-    zusammenfassung_kurz, zusammenfassung_detail = _build_summary(werte_dict, ampel)
+    zusammenfassung_kurz, zusammenfassung_detail = _build_summary(
+        werte_dict, ampel, geschlecht=geschlecht, alter=alter
+    )
 
     # 5. Lokale Hinweise erzeugen
     training_hinweise = [
