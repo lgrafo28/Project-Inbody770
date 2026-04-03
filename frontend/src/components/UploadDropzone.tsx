@@ -72,7 +72,11 @@ export function UploadDropzone({
 }: UploadDropzoneProps) {
   const [isDragging, setIsDragging] = useState(false);
 
-  const handleFile = async (file: File) => {
+  // Optionale Patientendaten — werden beim Upload als FormData-Felder mitgeschickt
+  const [geschlecht, setGeschlecht] = useState<'m' | 'w' | null>(null);
+  const [alter, setAlter] = useState<number | null>(null);
+
+  const handleFile = useCallback(async (file: File) => {
     if (!file) return;
 
     const validTypes = ['application/pdf', 'image/jpeg', 'image/png'];
@@ -100,6 +104,10 @@ export function UploadDropzone({
       const formData = new FormData();
       formData.append('file', optimizedFile);
 
+      // Optionale Patientendaten mitsenden
+      if (geschlecht) formData.append('geschlecht', geschlecht);
+      if (alter !== null) formData.append('alter', String(alter));
+
       const response = await fetch(`${API_URL}/api/analyze`, {
         method: 'POST',
         body: formData,
@@ -125,7 +133,7 @@ export function UploadDropzone({
     } catch (e: any) {
       onUploadError(e.message || 'Es ist ein Fehler aufgetreten');
     }
-  };
+  }, [geschlecht, alter, onUploadStart, onUploadSuccess, onUploadError]);
 
   const onDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -144,7 +152,7 @@ export function UploadDropzone({
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
       handleFile(e.dataTransfer.files[0]);
     }
-  }, []);
+  }, [handleFile]);
 
   const onChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
@@ -169,6 +177,51 @@ export function UploadDropzone({
 
       <div className="grid grid-cols-1 lg:grid-cols-[1.2fr_0.8fr] gap-12 items-start">
         <section className="space-y-8">
+          {/* Optionale Patientendaten */}
+          <div className="flex flex-wrap items-center gap-4">
+            {/* Geschlecht-Toggle */}
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setGeschlecht(g => g === 'm' ? null : 'm')}
+                className={`px-5 py-2 rounded-lg text-sm font-bold border transition-colors ${
+                  geschlecht === 'm'
+                    ? 'bg-primary text-on-primary border-primary'
+                    : 'bg-white text-on-surface border-outline-variant hover:border-primary/40'
+                }`}
+              >
+                Männlich
+              </button>
+              <button
+                type="button"
+                onClick={() => setGeschlecht(g => g === 'w' ? null : 'w')}
+                className={`px-5 py-2 rounded-lg text-sm font-bold border transition-colors ${
+                  geschlecht === 'w'
+                    ? 'bg-primary text-on-primary border-primary'
+                    : 'bg-white text-on-surface border-outline-variant hover:border-primary/40'
+                }`}
+              >
+                Weiblich
+              </button>
+            </div>
+
+            {/* Alter-Input */}
+            <input
+              type="number"
+              min={10}
+              max={100}
+              placeholder="Alter (Jahre)"
+              value={alter ?? ''}
+              onChange={e => setAlter(e.target.value ? Number(e.target.value) : null)}
+              className="w-36 px-4 py-2 rounded-lg text-sm font-medium border border-outline-variant bg-white text-on-surface placeholder:text-outline focus:outline-none focus:border-primary transition-colors"
+            />
+
+            {/* Hinweis: optional */}
+            <span className="text-xs text-outline font-label uppercase tracking-widest">
+              Optional
+            </span>
+          </div>
+
           <div className="bg-white rounded-xl p-10 shadow-[0px_24px_64px_rgba(0,86,179,0.12)] border border-primary/5 group transition-all duration-300 hover:shadow-[0px_32px_80px_rgba(0,86,179,0.16)]">
             <div
               onDragOver={onDragOver}
@@ -203,6 +256,18 @@ export function UploadDropzone({
                   type="file"
                   className="hidden"
                   accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"
+                  onChange={onChange}
+                />
+              </label>
+
+              {/* Kamera-Button — nur auf Mobile sichtbar */}
+              <label className="md:hidden bg-primary hover:bg-primary-container text-on-primary px-12 py-4 rounded-xl font-extrabold tracking-wide transition-all duration-300 hover:scale-[1.02] active:scale-95 shadow-xl shadow-primary/25 cursor-pointer">
+                Foto aufnehmen
+                <input
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  className="hidden"
                   onChange={onChange}
                 />
               </label>
