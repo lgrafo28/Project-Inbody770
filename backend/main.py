@@ -1,6 +1,7 @@
-from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi import FastAPI, UploadFile, File, HTTPException, Form
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
+from typing import Optional
 
 import asyncio
 import logging
@@ -59,7 +60,11 @@ def format_seconds(seconds: float) -> str:
 # --------------------------------------------------
 
 @app.post("/api/analyze")
-async def analyze_document(file: UploadFile = File(...)):
+async def analyze_document(
+    file: UploadFile = File(...),
+    geschlecht: Optional[str] = Form(None),   # 'm' oder 'w', optional
+    alter: Optional[int] = Form(None),         # Alter in Jahren, optional
+):
     if not file:
         raise HTTPException(status_code=400, detail="Keine Datei hochgeladen.")
 
@@ -119,7 +124,9 @@ async def analyze_document(file: UploadFile = File(...)):
             logger.info(f"STEP gemini_call: {format_seconds(ai_duration)}")
 
             validation_start = time.perf_counter()
-            validated_response = process_and_validate_data(raw_data)
+            validated_response = process_and_validate_data(
+                raw_data, geschlecht=geschlecht, alter=alter
+            )
             validation_duration = time.perf_counter() - validation_start
             logger.info(f"STEP validation: {format_seconds(validation_duration)}")
 
@@ -136,7 +143,9 @@ async def analyze_document(file: UploadFile = File(...)):
         mock_start = time.perf_counter()
 
         await asyncio.sleep(0.5)
-        validated_response = process_and_validate_data(MOCK_RESPONSE)
+        validated_response = process_and_validate_data(
+            MOCK_RESPONSE, geschlecht=geschlecht, alter=alter
+        )
 
         mock_duration = time.perf_counter() - mock_start
         total_duration = time.perf_counter() - total_start
