@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import type { AnalysisResponse, Hinweise } from '../types';
 import { ValueCard } from './ValueCard';
+import { SECONDARY_KEY_ORDER } from './AnalysisDashboard';
 
 interface DetailsTabProps {
   data: AnalysisResponse;
@@ -103,8 +104,13 @@ function SectionHeading({ children }: { children: ReactNode }) {
 export function DetailsTab({ data }: DetailsTabProps) {
   const { werte, hinweise, ampel_begruendung } = data;
 
+  // Geordnete Sekundärmetriken aus der zentralen Konstante – feste Reihenfolge garantiert
+  const secondaryKeys: string[] = SECONDARY_KEY_ORDER.filter(
+    k => werte[k] != null && werte[k]?.wert != null
+  );
+
   const presentCategories = DETAIL_CATEGORIES.filter(cat =>
-    cat.keys.some(k => werte[k]?.wert != null)
+    cat.keys.some(k => secondaryKeys.includes(k))
   );
 
   const presentHinweisKeys = hinweisKeys.filter(

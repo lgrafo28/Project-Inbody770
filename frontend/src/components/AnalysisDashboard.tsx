@@ -4,6 +4,14 @@ import { DetailsTab } from './DetailsTab';
 
 type TabKey = 'overview' | 'details';
 
+// Feste Reihenfolge der Sekundärmetriken – verhindert zufällige Sortierung durch Object.keys()
+export const SECONDARY_KEY_ORDER = [
+  'koerperfett',
+  'viszeralfett',
+  'koerperwasser',
+  'ecw_tbw',
+] as const;
+
 interface AnalysisDashboardProps {
   data: AnalysisResponse;
   activeTab: TabKey;
