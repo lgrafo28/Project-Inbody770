@@ -7,7 +7,8 @@ class DocumentMeta(BaseModel):
     name: Optional[str] = None
     datum: Optional[str] = None
     confidence: float
-    alter: Optional[int] = None  # Patientenalter in Jahren (optional)
+    alter: Optional[int] = None      # Patientenalter in Jahren (optional)
+    geschlecht: Optional[str] = None  # 'm' oder 'w' (optional)
 
 
 class Messwert(BaseModel):

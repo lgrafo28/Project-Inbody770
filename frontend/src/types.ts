@@ -5,6 +5,8 @@ export interface DocumentMeta {
   confidence: number;
   /** Age in years — optional, shown in meta if present, omitted silently if absent. */
   alter?: number | null;
+  /** 'm' | 'w' — optional, forwarded from upload form. */
+  geschlecht?: string | null;
 }
 
 export interface Messwert {

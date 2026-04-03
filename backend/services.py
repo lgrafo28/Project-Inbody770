@@ -158,9 +158,11 @@ def process_and_validate_data(
     # 1. Technische Validierung via Pydantic
     response_model = AnalysisResponse(**raw_data)
 
-    # Patientenalter im Meta-Objekt speichern falls angegeben
+    # Patientendaten im Meta-Objekt speichern falls angegeben
     if alter is not None:
         response_model.meta.alter = alter
+    if geschlecht is not None:
+        response_model.meta.geschlecht = geschlecht
 
     fehlende_felder: list[str] = []
     auffaellige_felder: list[str] = []

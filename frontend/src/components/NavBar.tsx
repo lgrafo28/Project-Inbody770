@@ -9,9 +9,11 @@ interface NavBarProps {
   activeTab?: TabKey;
   onTabChange?: (tab: TabKey) => void;
   onReset?: () => void;
+  onExportPdf?: () => void;
+  isExporting?: boolean;
 }
 
-export function NavBar({ activeTab, onTabChange, onReset }: NavBarProps) {
+export function NavBar({ activeTab, onTabChange, onReset, onExportPdf, isExporting }: NavBarProps) {
   const showTabs = activeTab !== undefined;
 
   return (
@@ -52,6 +54,18 @@ export function NavBar({ activeTab, onTabChange, onReset }: NavBarProps) {
           <span className="text-xs font-bold uppercase tracking-widest text-on-surface-variant font-label">
             Professionelle Befundanalyse
           </span>
+        )}
+        {showTabs && onExportPdf && (
+          <button
+            onClick={onExportPdf}
+            disabled={isExporting}
+            className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-primary border border-primary/30 bg-white rounded-xl shadow-sm hover:bg-primary/5 transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+            {isExporting ? 'Wird erstellt…' : 'PDF exportieren'}
+          </button>
         )}
         {showTabs && onReset && (
           <button

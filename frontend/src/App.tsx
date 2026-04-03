@@ -13,6 +13,7 @@ function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<TabKey>('overview');
+  const [isExporting, setIsExporting] = useState(false);
 
   const handleUploadStart = () => {
     setIsLoading(true);
@@ -30,6 +31,41 @@ function App() {
     setError(err);
   };
 
+  const handleExportPdf = async () => {
+    if (!data) return;
+    setIsExporting(true);
+    try {
+      // Lazy-load: @react-pdf/renderer landet nicht im initialen Bundle
+      const [{ pdf }, { PdfReport }] = await Promise.all([
+        import('@react-pdf/renderer'),
+        import('./components/PdfReport'),
+      ]);
+
+      const blob = await pdf(<PdfReport data={data} />).toBlob();
+      const url  = URL.createObjectURL(blob);
+
+      // Dateiname: slugifizierter Name + Datum
+      const namePart = data.meta.name
+        ? data.meta.name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
+        : 'anonym';
+      const datumPart = data.meta.datum
+        ? data.meta.datum.replace(/[.\s/]/g, '-').replace(/-+/g, '-')
+        : new Date().toISOString().slice(0, 10);
+
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `inbody-analyse-${namePart}-${datumPart}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+
+      // Kurze Verzögerung: Download muss sicher ausgelöst sein bevor URL freigegeben wird
+      setTimeout(() => URL.revokeObjectURL(url), 150);
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   const handleReset = () => {
     setData(null);
     setError(null);
@@ -42,6 +78,8 @@ function App() {
         activeTab={data ? activeTab : undefined}
         onTabChange={data ? setActiveTab : undefined}
         onReset={data ? handleReset : undefined}
+        onExportPdf={data ? handleExportPdf : undefined}
+        isExporting={isExporting}
       />
 
       <main className="flex-grow pt-16">
